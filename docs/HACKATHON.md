@@ -87,9 +87,12 @@ Environment: UI `http://localhost:4173` · API `http://127.0.0.1:8000` · Falkor
    tool-call table visible. While it works: "Watch its tool calls — it's choosing real graph queries
    over MCP, not guessing." Point at the *Grounded in tool evidence* badge, rounds, tool-call table,
    advisory links.
+   If the turn comes back as the honest fallback (*"No final analysis could be produced…"*) or an empty
+   answer — an occasional free-tier model quirk — wait ~60 s and ask once more; the tool-call table still
+   shows the real queries it ran.
    ⚠️ **Verified free-tier reality:** the Groq free tier allows ~8K tokens/minute, and
    `openai/gpt-oss-120b` sometimes rejects long multi-round output (`output_parse_failed`) or large
-   single requests (413). Short, focused questions work reliably; broad multi-round sweeps (e.g. the
+   single requests (413). Short, focused questions are the reliable zone; broad multi-round sweeps (e.g. the
    full blast-radius question) need provider headroom — see §6 for one-line provider swaps.
 9. **Remediation. (40 s)** Fix groups ordered by coverage; open one: candidates + compatibility.
    "Prioritized, grouped fixes — not a raw CVE dump."
@@ -190,8 +193,9 @@ Groq key after the event. Never ship `.env` anywhere.
 - **Record everything the day before.** If venue Wi-Fi dies, play the recording.
 - Once an analysis is persisted, Findings / Graph / Remediation / Issue preview need **no LLM and no
   internet** — only the AI analyst does.
-- If the analyst fails on stage (provider rate limit or parser rejection on long answers): "the provider
-  is rate-limited on this network — here's the rehearsal answer" → show the screenshot or the recording.
+- If the analyst fails on stage (provider rate limit or parser rejection on long answers): say "the provider
+  is rate-limited on this network" — try one 60 s-spaced re-ask; then fall back to the rehearsal screenshot
+  or the recording.
 - Free-tier rate limits are per-minute; leave a minute between full rehearsals.
 - Keep a **second validated repo** ready in case ingest #1 is slow that day.
 - Put screenshots (grounded badge, tool-call table, graph path, issue preview) in the slide deck as

@@ -1,0 +1,158 @@
+#!/usr/bin/env node
+/**
+ * Generate TypeScript types for the BlastRadius API from its OpenAPI document.
+ *
+ * The backend is the source of truth: `openapi.json` is a committed snapshot of
+ * `GET /openapi.json` from the running FastAPI app. Regenerate the snapshot and
+ * the types with:
+ *
+ *   # from the repository root (backend)
+ *   python scripts/dump_openapi.py --output frontend/openapi.json
+ *   # or against a running backend:
+ *   #   node scripts/generate-api-types.mjs --url http://127.0.0.1:8000/openapi.json
+ *
+ *   # from frontend/
+ *   npm run api:types
+ *
+ * Usage:
+ *   node scripts/generate-api-types.mjs [--input openapi.json] [--url URL] [--output src/api/generated.ts]
+ */
+
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = resolve(here, "..");
+
+function parseArgs(argv) {
+  const args = {
+    input: resolve(root, "openapi.json"),
+    url: null,
+    output: resolve(root, "src/api/generated.ts"),
+  };
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--input") args.input = resolve(process.cwd(), argv[i + 1]);
+    if (argv[i] === "--url") args.url = argv[i + 1];
+    if (argv[i] === "--output") args.output = resolve(root, argv[i + 1]);
+  }
+  return args;
+}
+
+const PRIMITIVES = {
+  string: "string",
+  number: "number",
+  integer: "number",
+  boolean: "boolean",
+  null: "null",
+};
+
+function literalUnion(values) {
+  return values
+    .map((value) => (typeof value === "string" ? JSON.stringify(value) : String(value)))
+    .join(" | ");
+}
+
+/** Map one JSON-schema node to a TypeScript type expression. */
+function tsType(schema, depth = 0) {
+  if (!schema || typeof schema !== "object") return "unknown";
+  if (schema.$ref) return schema.$ref.split("/").pop();
+  if (Array.isArray(schema.allOf)) {
+    return schema.allOf.map((part) => tsType(part, depth)).join(" & ");
+  }
+  if (Array.isArray(schema.oneOf)) {
+    return schema.oneOf.map((part) => tsType(part, depth)).join(" | ");
+  }
+  if (Array.isArray(schema.anyOf)) {
+    return schema.anyOf.map((part) => tsType(part, depth)).join(" | ");
+  }
+  if (Array.isArray(schema.enum)) return literalUnion(schema.enum);
+  if ("const" in schema) return JSON.stringify(schema.const);
+  if (schema.type === "array") {
+    const inner = tsType(schema.items ?? {}, depth + 1);
+    return needsParens(inner) ? `Array<${inner}>` : `Array<${inner}>`;
+  }
+  if (schema.type === "object" || schema.properties || schema.additionalProperties) {
+    if (schema.properties) {
+      const required = new Set(schema.required ?? []);
+      const fields = Object.entries(schema.properties).map(([name, prop]) => {
+        const optional = required.has(name) ? "" : "?";
+        return `${JSON.stringify(name)}${optional}: ${tsType(prop, depth + 1)}`;
+      });
+      return `{ ${fields.join("; ")} }`;
+    }
+    const extra = schema.additionalProperties;
+    if (extra === true || extra === undefined) return "Record<string, unknown>";
+    return `Record<string, ${tsType(extra, depth + 1)}>`;
+  }
+  if (schema.type && PRIMITIVES[schema.type]) return PRIMITIVES[schema.type];
+  return "unknown";
+}
+
+function needsParens(type) {
+  return type.includes(" | ") && !type.startsWith("Array<");
+}
+
+function docComment(description) {
+  if (!description) return null;
+  const text = String(description).replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  return `/** ${text.replace(/\*\//g, "*\\/")} */`;
+}
+
+function renderSchema(name, schema) {
+  const lines = [];
+  const doc = docComment(schema.description);
+  if (schema.enum && !schema.properties) {
+    if (doc) lines.push(doc);
+    lines.push(`export type ${name} = ${literalUnion(schema.enum)};`);
+    return lines.join("\n");
+  }
+  const type = tsType(schema);
+  if (!schema.properties && !type.startsWith("{")) {
+    if (doc) lines.push(doc);
+    lines.push(`export type ${name} = ${type};`);
+    return lines.join("\n");
+  }
+  if (doc) lines.push(doc);
+  lines.push(`export interface ${name} {`);
+  const required = new Set(schema.required ?? []);
+  for (const [prop, propSchema] of Object.entries(schema.properties ?? {})) {
+    const propDoc = docComment(propSchema.description);
+    if (propDoc) lines.push(`  ${propDoc}`);
+    const optional = required.has(prop) ? "" : "?";
+    lines.push(`  ${prop}${optional}: ${tsType(propSchema)};`);
+  }
+  lines.push("}");
+  return lines.join("\n");
+}
+
+async function loadDocument(args) {
+  if (args.url) {
+    const response = await fetch(args.url);
+    if (!response.ok) throw new Error(`GET ${args.url} -> ${response.status}`);
+    return response.json();
+  }
+  return JSON.parse(readFileSync(args.input, "utf8"));
+}
+
+const args = parseArgs(process.argv.slice(2));
+const document = await loadDocument(args);
+const schemas = document.components?.schemas ?? {};
+const names = Object.keys(schemas).sort();
+
+const parts = [
+  "// Generated by scripts/generate-api-types.mjs from openapi.json — do not edit by hand.",
+  `// Source: ${args.url ?? "openapi.json"} (${document.info?.title ?? "BlastRadius"} ${document.info?.version ?? ""})`.trim(),
+  "// Regenerate with: npm run api:types",
+  "",
+];
+
+for (const name of names) {
+  parts.push(renderSchema(name, schemas[name]));
+  parts.push("");
+}
+
+mkdirSync(dirname(args.output), { recursive: true });
+writeFileSync(args.output, `${parts.join("\n").trimEnd()}\n`, "utf8");
+console.log(`Wrote ${names.length} types to ${args.output}`);

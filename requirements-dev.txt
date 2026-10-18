@@ -1,0 +1,3 @@
+# BlastRadius development/test dependencies (Phase 4A).
+-r requirements.txt
+pytest>=8.0

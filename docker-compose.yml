@@ -1,0 +1,63 @@
+# BlastRadius local deployment: FalkorDB + backend + frontend.
+#
+# NOTE: these artifacts are authored for deployment but could not be executed in
+# the verification environment (no Docker CLI available).  See docs/PHASE8.md
+# ("Deployment") for the verified non-Docker run path.
+#
+# Usage:
+#   Copy .env.example to .env and set at least BLASTRADIUS_GRAPH_NAME and any
+#   optional credentials, then:
+#     docker compose up --build
+#   Frontend:  http://localhost:8080
+#   API:       http://localhost:8000/api/v1
+#   MCP:       http://localhost:8000/mcp/
+#
+# Security notes:
+#   * FalkorDB is intentionally NOT published to the host; only the backend
+#     service can reach it on the compose network.
+#   * Enable GitHub writes only deliberately: BLASTRADIUS_ACTIONS_ENABLED=true
+#     plus a dedicated token and the confirmation secret, and keep an
+#     allowlist (BLASTRADIUS_ACTIONS_REPOSITORY_ALLOWLIST).
+
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    restart: unless-stopped
+    volumes:
+      - falkordb-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      BLASTRADIUS_GRAPH_HOST: falkordb
+      BLASTRADIUS_GRAPH_PORT: "6379"
+      BLASTRADIUS_GRAPH_NAME: ${BLASTRADIUS_GRAPH_NAME:-blastradius}
+      BLASTRADIUS_ACTIONS_STORE_PATH: /var/lib/blastradius/actions.sqlite
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - blastradius-actions:/var/lib/blastradius
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  falkordb-data:
+  blastradius-actions:

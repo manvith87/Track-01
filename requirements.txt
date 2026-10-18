@@ -1,0 +1,13 @@
+# BlastRadius runtime dependencies (Phase 4A).
+# Python 3.11+ is required (stdlib tomllib is used on 3.11+; tomli is a fallback only).
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+httpx>=0.27
+packaging>=24.0
+tomli>=2.0; python_version < "3.11"
+falkordb>=1.0
+# MCP Python SDK 2.x — app.mcp imports `mcp.server.mcpserver.MCPServer` (the
+# v2 API with `streamable_http_app`/`session_manager`), which does not exist
+# in 1.x; pinned to <3.0 to guard against v3 breaking changes.
+mcp>=2.0,<3.0

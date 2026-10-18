@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blastradius"
+version = "0.1.0"
+description = "BlastRadius - graph-powered software security analysis (Phase 1: repository ingestion, Phase 2: FalkorDB dependency graph, Phase 3: OSV vulnerability intelligence, Phase 4A: read-only MCP server, Phase 4B: evidence-grounded AI agent, Phase 5: deterministic prioritization and remediation planning, Phase 6: secure user-approved GitHub issue remediation)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "httpx>=0.27",
+    "packaging>=24.0",
+    "tomli>=2.0; python_version < '3.11'",
+    "falkordb>=1.0",
+    "mcp>=2.0,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+blastradius-ingest = "app.cli:main"
+
+[tool.setuptools]
+packages = ["app", "app.core", "app.api", "app.api.v1", "app.mcp", "app.agent", "app.models", "app.ingestion", "app.ingestion.parsers", "app.graph", "app.osv", "app.remediation", "app.actions", "app.github"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "live: read-only test that talks to the real GitHub API / public repositories (opt-in)",
+    "live_write: opt-in test that performs one real GitHub write on an explicitly authorized test repository",
+    "network: test that requires outbound network access (mocked by default)",
+    "graph: test that talks to a real FalkorDB instance (opt-in)",
+]

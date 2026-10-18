@@ -222,6 +222,12 @@ Goal: a public Python repo that produces a **visible, version-confirmed** CVE st
 - Small-to-mid size — live ingestion stays under a minute.
 - Candidates to try: deliberately-vulnerable demo apps (e.g. `adeyosemanputra/pygoat`) or any app pinned
   to 2021–2023-era dependencies. **Validate before choosing.**
+- Validated on this deployment — use as the primary test repo:
+  **`python-poetry/poetry`** → 973 files, 185 declarations, 118 resolved packages, 54 vulnerabilities,
+  **114 findings** (~1–2 min ingest; already seeded as `analysis_ec764e15da658d49`).
+  Quick pipeline smoke test: `pypa/sampleproject` (~1 min; no lockfile → little/no advisory data).
+- Validated negative: `adeyosemanputra/pygoat` looks tempting but its requirements are unpinned →
+  0 resolved packages → OSV sync reports `nothing_to_scan` (0 findings). Always check the resolve counts.
 - Validation loop: ingestion + OSV sync → check that Findings shows several advisory-confirmed entries and
   at least one interesting graph path.
 

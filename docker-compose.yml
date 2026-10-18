@@ -1,8 +1,8 @@
 # BlastRadius local deployment: FalkorDB + backend + frontend.
 #
-# NOTE: these artifacts are authored for deployment but could not be executed in
-# the verification environment (no Docker CLI available).  See docs/PHASE8.md
-# ("Deployment") for the verified non-Docker run path.
+# NOTE: this stack is verified end-to-end in the development environment
+# (ingest -> graph persist -> OSV advisory sync -> AI analyst).  See
+# docs/PHASE8.md ("Deployment") and docs/HACKATHON.md for the demo runbook.
 #
 # Usage:
 #   Copy .env.example to .env and set at least BLASTRADIUS_GRAPH_NAME and any

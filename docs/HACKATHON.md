@@ -82,10 +82,15 @@ Environment: UI `http://localhost:4173` · API `http://127.0.0.1:8000` · Falkor
    details, matched-by, evidence path. "Each row explains *why* it ranks there."
 7. **Graph explorer. (60 s)** Show the dependency graph; select the vulnerable package; show the path from
    an entry point. "That's the blast radius — not 'you use it', but 'this chain reaches it'."
-8. **AI analyst. (60–90 s)** Ask the first suggested question:
-   *"Which packages are affected by advisories and have a modeled path from an entry point?"*
-   While it works: "Watch its tool calls — it's choosing real graph queries over MCP, not guessing."
-   Point at the *Grounded in tool evidence* badge, rounds, tool-call table, advisory links.
+8. **AI analyst. (60–90 s)** Ask a focused question:
+   *"What is the graph ingestion status for this analysis?"* → a grounded, cited answer with the
+   tool-call table visible. While it works: "Watch its tool calls — it's choosing real graph queries
+   over MCP, not guessing." Point at the *Grounded in tool evidence* badge, rounds, tool-call table,
+   advisory links.
+   ⚠️ **Verified free-tier reality:** the Groq free tier allows ~8K tokens/minute, and
+   `openai/gpt-oss-120b` sometimes rejects long multi-round output (`output_parse_failed`) or large
+   single requests (413). Short, focused questions work reliably; broad multi-round sweeps (e.g. the
+   full blast-radius question) need provider headroom — see §6 for one-line provider swaps.
 9. **Remediation. (40 s)** Fix groups ordered by coverage; open one: candidates + compatibility.
    "Prioritized, grouped fixes — not a raw CVE dump."
 10. **GitHub issue. (40 s)** Generate the preview: title, body, evidence. Attempt confirm with writes
@@ -121,9 +126,12 @@ Notes:
 
 - Graph namespace: `blastradius` on `localhost:6379` (override with `$env:BLASTRADIUS_GRAPH_NAME`).
 - The backend does **not** auto-load `.env` — always run the loader line first.
-- **Do not use Docker Compose for the demo** — it is authored but was never executed on this machine; the
-  commands above are the verified path.
-- Stop: `Ctrl+C` in each terminal; FalkorDB keeps its data.
+- **Docker Compose is also verified** (end-to-end on this machine): `docker compose up -d --build` →
+  http://localhost:8080. Frontend nginx proxies `/api` and `/health` to the backend; FalkorDB stays
+  internal-only. After recreating the backend, run `docker compose restart frontend` (nginx caches the
+  backend address). The three-terminal path above remains the dev-loop alternative (http://localhost:4173).
+- Stop: manual path → `Ctrl+C` in each terminal (FalkorDB keeps its data); compose → `docker compose down`
+  (named volumes keep the data; `down -v` would delete it).
 
 ## 5. Recording the demo video
 
@@ -162,8 +170,15 @@ Ranked honestly under deadline pressure:
 1. **Local recording only** — recommended; a video is usually enough. Nothing to expose, nothing to break.
 2. **Cloud VM (Ubuntu)**: the same three commands as §4 (Docker for FalkorDB; Python + Node on the VM) +
    firewall rules. Works; budget an hour for setup.
-3. **Docker Compose on a VM**: `docker compose up --build` — artifacts look right (FalkorDB internal-only,
-   nginx proxies `/api`), but they have **never been executed**, so verify well before demo day.
+3. **Docker Compose on a VM**: `docker compose up -d --build` — verified end-to-end locally (ingest →
+   persist → OSV sync → analyst; see §4); on a VM it is the same stack plus a firewall rule for `:8080`.
+4. **Provider headroom for the AI analyst** (the analyst speaks any OpenAI-compatible endpoint — three
+   `.env` values: `BLASTRADIUS_AGENT_BASE_URL`, `BLASTRADIUS_AGENT_MODEL`, `BLASTRADIUS_AGENT_API_KEY`):
+   - Google Gemini free tier — `https://generativelanguage.googleapis.com/v1beta/openai` + `gemini-2.5-flash`
+     (free key from Google AI Studio; generous tokens/minute);
+   - Cerebras free tier — `https://api.cerebras.ai/v1` + e.g. `qwen-3-32b` (free key);
+   - or upgrade the existing Groq organization to a paid tier (same config, higher limits).
+   Rotate any key you paste anywhere; never commit `.env`.
 
 ⚠️ **Before any public exposure:** the app has **no authentication** — anyone with the URL can ingest
 repos, query graphs and spend your LLM tokens. Protect it with a reverse proxy + basic auth, or a random
@@ -175,8 +190,8 @@ Groq key after the event. Never ship `.env` anywhere.
 - **Record everything the day before.** If venue Wi-Fi dies, play the recording.
 - Once an analysis is persisted, Findings / Graph / Remediation / Issue preview need **no LLM and no
   internet** — only the AI analyst does.
-- If the analyst fails on stage: "the provider is rate-limited on this network — here's the rehearsal
-  answer" → show screenshot or switch to the recorded video.
+- If the analyst fails on stage (provider rate limit or parser rejection on long answers): "the provider
+  is rate-limited on this network — here's the rehearsal answer" → show the screenshot or the recording.
 - Free-tier rate limits are per-minute; leave a minute between full rehearsals.
 - Keep a **second validated repo** ready in case ingest #1 is slow that day.
 - Put screenshots (grounded badge, tool-call table, graph path, issue preview) in the slide deck as
